@@ -1,0 +1,17 @@
+# macOS
+.DS_Store
+
+# Build artifacts / archives
+*.class
+*.zip
+*.o
+*.out
+*.exe
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+
+# Personal (not part of the project)
+Github_Rules.txt

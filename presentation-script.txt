@@ -1,0 +1,149 @@
+==================================================================
+ KARGER'S CONTRACTION ALGORITHM - GLOBAL MINIMUM CUT   (KT  Sec 13.2)
+ Presentation script + narration   |   keep karger.html open alongside
+==================================================================
+
+QUICK REFERENCE (this demo graph)
+  - Two K4 clusters {1,2,3,4} and {5,6,7,8} joined by 2 bridge edges
+  - n = 8 vertices, m = 14 edges, min cut k = 2 (the two bridges)
+  - Contractions per run: n - 2 = 6
+  - One-run success prob >= 1 / C(8,2) = 1/28 ~= 3.6%  (worst-case bound)
+  - Empirical success on this graph: ~20% (bound is loose for a unique cut)
+  - Repeat ~ C(n,2) * ln n  ~= 58 runs   =>   failure <= 1/n
+
+------------------------------------------------------------------
+0. ONE-SENTENCE IDEA   (say this first)
+------------------------------------------------------------------
+Randomly merge vertices together until only two "blobs" remain; the
+edges between them are a guess at the minimum cut. That guess is right
+with probability >= 1/C(n,2), so repeating it a polynomial number of
+times finds the true minimum cut with high probability.
+
+------------------------------------------------------------------
+1. THE PROBLEM   (~30s)
+------------------------------------------------------------------
+SAY: A cut splits the vertices into two non-empty groups; its size is
+the number of edges crossing between them. The GLOBAL minimum cut is
+the cheapest such split.
+  - "Global" = NO fixed source/sink (unlike a min s-t cut from max-flow).
+  - Naive method: fix s, try every sink => n-1 max-flow computations.
+  - Karger's contraction algorithm needs no flow at all - just randomness.
+
+[POINT at graph] The min cut here is visually obvious: the two
+horizontal bridge edges separating the left K4 from the right K4.
+So k = 2.
+
+------------------------------------------------------------------
+2. THE ALGORITHM   (~45s)     [CLICK: Step, two or three times]
+------------------------------------------------------------------
+SAY: Work on a multigraph (parallel edges allowed). Repeat until 2
+supernodes remain:
+     - pick a UNIFORMLY RANDOM edge (u,v)
+     - CONTRACT it: merge u and v into one supernode
+          * KEEP parallel edges  (it stays a multigraph)
+          * DELETE self-loops
+Contracting (u,v) = betting that u and v lie on the SAME side of the cut.
+Each contraction removes one node, so we do exactly n - 2 = 6 of them.
+At the end, the two supernodes are the two sides, and the edges between
+them are the cut we output.
+
+[CLICK Step] Narrate: the red edge is the random choice; its endpoints
+slide together; parallel edges pile up; self-loops vanish.
+[POINT at colors] Blue = a blob of only-Left vertices, orange = only-
+Right. The moment a PURPLE blob appears, we contracted a bridge edge -
+the size-2 cut is now impossible to recover for this run.
+
+------------------------------------------------------------------
+3. RUN IT LIVE   (~30s)
+------------------------------------------------------------------
+[CLICK Auto-run, let it finish]  It will usually FAIL (purple appears).
+   SAY: One run is unreliable - it's a randomized algorithm.
+[CLICK "New random run" twice]  Sometimes wins, sometimes loses.
+[CLICK "Find a lucky run"]  Guaranteed clean success - THIS is what
+   winning looks like: blue blob {1,2,3,4}, orange blob {5,6,7,8},
+   exactly 2 edges between them = the minimum cut.
+
+------------------------------------------------------------------
+4. WHY IT WORKS - THE ANALYSIS   (~90s)    [POINT at analysis panel]
+------------------------------------------------------------------
+Fix ONE particular global min cut with edge-set F, where |F| = k.
+The run finds this cut IF AND ONLY IF it never contracts an edge of F.
+
+(1) The graph is edge-rich.
+    For any vertex v, the cut ({v}, rest) has deg(v) edges and is a
+    valid cut, so it cannot beat the minimum:  deg(v) >= k.
+    Sum over all n vertices (each edge counted twice):
+        2m = SUM deg(v) >= k*n      =>      m >= k*n/2.
+
+(2) First contraction.
+    Random edge among m, with k of them in F:
+        P(hit F) = k/m <= k/(k*n/2) = 2/n     =>   P(avoid F) >= 1 - 2/n.
+
+(3) Same bound at every step (induction).
+    Contraction never shrinks the min cut, so while F survives it is
+    still a minimum cut of the smaller graph. With j supernodes left
+    the graph still has >= k*j/2 edges, so:
+        P(hit F) <= 2/j           =>   P(avoid F) >= 1 - 2/j.
+
+(4) Multiply over all contractions, j = n, n-1, ..., 3  (it telescopes):
+        P(success) >= PRODUCT (1 - 2/j)
+                    = (n-2)/n * (n-3)/(n-1) * ... * 2/4 * 1/3
+                    = 2 / (n(n-1))
+                    = 1 / C(n,2).
+    For n = 8:   1 / C(8,2) = 1/28 ~= 3.6%.
+
+------------------------------------------------------------------
+5. MAKE IT RELIABLE   (~30s)     [CLICK "Run 1000 trials"]
+------------------------------------------------------------------
+Run T independent times and keep the SMALLEST cut found.
+    P(all T fail) <= (1 - 1/C(n,2))^T <= e^( -T / C(n,2) ).
+Choose T = C(n,2) * ln n:
+    P(failure) <= e^(-ln n) = 1/n.
+So O(n^2 log n) runs => succeeds with HIGH PROBABILITY, polynomial time.
+
+[POINT at trials result] Empirical ~20% here, well ABOVE the 3.6%
+guarantee: the 1/C(n,2) bound is WORST-CASE (tight for a cycle, which
+has many min cuts). A graph with one well-separated min cut, like this
+one, survives much more often.
+
+------------------------------------------------------------------
+6. THE COROLLARY   (great closer)   (~20s)
+------------------------------------------------------------------
+CLAIM: A graph has AT MOST C(n,2) distinct global minimum cuts.
+PROOF: Each run outputs exactly one cut, and the events "outputs cut
+C_1", "outputs C_2", ... are disjoint, so their probabilities sum to
+<= 1. Each global min cut is output with probability >= 1/C(n,2). If
+there were more than C(n,2) of them, the total would exceed 1 - a
+contradiction. (Tight for the n-cycle: ANY 2 of its edges form a min
+cut, giving exactly C(n,2) of them.)
+
+------------------------------------------------------------------
+ANTICIPATED QUESTIONS
+------------------------------------------------------------------
+Q: Why pick a random EDGE rather than a random vertex/pair?
+A: Edge-uniform makes "hit the cut" probability exactly k/m, which the
+   degree bound m >= kn/2 controls. It also means heavily-connected
+   vertices (likely on the same side) tend to merge first - what we want.
+
+Q: Why keep PARALLEL edges instead of collapsing them to one?
+A: Multiplicity encodes how strongly two supernodes are connected.
+   Collapsing them would bias the random choice and break the k/m bound.
+
+Q: Why is the empirical success rate so much higher than 3.6%?
+A: 1/C(n,2) is a worst-case LOWER bound. This graph has a single, well-
+   separated min cut, so it survives contractions far more often.
+
+Q: What's the running time?
+A: Each run is polynomial; O(n^2 log n) runs total. The recursive
+   Karger-Stein refinement brings the whole thing to ~O(n^2 log^3 n),
+   but that's beyond Section 13.2.
+
+Q: Does it always find THE minimum, or just a small cut?
+A: A single run can miss. With enough repetitions the probability of
+   missing the true minimum drops below 1/n^c - "high probability",
+   not a guarantee. (It's a Monte Carlo algorithm.)
+
+==================================================================
+ FILES:  karger.html  (interactive visual, captions update per step)
+         presentation-script.txt  (this file)
+==================================================================

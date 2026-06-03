@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Karger's Contraction Algorithm — Global Minimum Cut (§13.2)</title>
+<style>
+  :root{
+    --blue:#2563eb; --orange:#ea580c; --purple:#7c3aed;
+    --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --bg:#f1f5f9;
+    --ok:#16a34a; --bad:#dc2626;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.45;
+  }
+  .wrap{max-width:1240px; margin:0 auto; padding:22px 22px 60px;}
+  header h1{font-size:25px; margin:0 0 4px;}
+  header p{margin:0; color:var(--muted); font-size:15px;}
+  .layout{display:grid; grid-template-columns:minmax(0,1fr) 400px; gap:20px; margin-top:18px;}
+  @media (max-width:980px){ .layout{grid-template-columns:1fr;} }
+  .card{background:#fff; border:1px solid var(--line); border-radius:16px;
+        box-shadow:0 1px 3px rgba(15,23,42,.06),0 8px 24px rgba(15,23,42,.05); padding:16px;}
+  .card h2{font-size:16px; margin:0 0 10px; letter-spacing:.01em;}
+  svg.graph{width:100%; height:auto; display:block; border-radius:12px;
+            background:radial-gradient(circle at 1px 1px,#eef2f7 1px,transparent 0) 0 0/22px 22px,#fbfcfe;}
+  .edge{stroke:#94a3b8; stroke-width:3; fill:none;}
+  .edge.bridge{stroke:#cbd5e1;}
+  .edge.hot{stroke:var(--bad); stroke-width:6;}
+  .node circle{stroke:#fff; stroke-width:3; transition:none;}
+  .node text{fill:#fff; font-weight:700; text-anchor:middle; dominant-baseline:central;}
+
+  .controls{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:6px;}
+  button{font-size:14px; font-weight:600; padding:10px 13px; border-radius:10px;
+         border:1px solid transparent; cursor:pointer; background:#e2e8f0; color:#0f172a;}
+  button:hover{filter:brightness(.97)}
+  button.primary{background:var(--blue); color:#fff;}
+  button.go{background:#0f172a; color:#fff;}
+  button.lucky{background:var(--ok); color:#fff;}
+  button:disabled{opacity:.45; cursor:not-allowed; filter:none;}
+
+  .status{font-size:15px; margin:12px 0 6px; min-height:24px;}
+  .pill{display:inline-block; padding:2px 9px; border-radius:999px; font-weight:700; font-size:13px;}
+  .pill.ok{background:#dcfce7; color:#166534;}
+  .pill.bad{background:#fee2e2; color:#991b1b;}
+  .progress{font-variant-numeric:tabular-nums; color:var(--muted); font-size:14px;}
+
+  .legend{display:flex; flex-wrap:wrap; gap:14px; font-size:13px; color:var(--muted); margin-top:10px;}
+  .legend span{display:inline-flex; align-items:center; gap:6px;}
+  .dot{width:13px; height:13px; border-radius:50%; display:inline-block;}
+
+  .narration{margin-top:12px; padding:13px 15px; border-left:4px solid var(--blue);
+    background:#f8fafc; border-radius:8px; font-size:14.5px; line-height:1.55; min-height:48px;
+    transition:background .2s,border-color .2s;}
+  .narration b{color:var(--ink);}
+  .narration.win{border-left-color:var(--ok); background:#f0fdf4;}
+  .narration.lose{border-left-color:var(--bad); background:#fef2f2;}
+  .narration.warn{border-left-color:var(--purple); background:#faf5ff;}
+
+  .panel{font-size:14px;}
+  .panel h2{margin-top:0;}
+  .panel .lead{color:var(--muted); margin:-4px 0 10px; font-size:13px;}
+  pre.algo{background:#0f172a; color:#e2e8f0; padding:12px 14px; border-radius:10px;
+           font-size:12.5px; line-height:1.5; overflow:auto; margin:0 0 6px;}
+  pre.algo b{color:#7dd3fc;}
+  .math{background:#f8fafc; border:1px solid var(--line); border-radius:10px; padding:11px 13px; margin:10px 0;}
+  .math .step{margin:6px 0; font-size:13.5px;}
+  .math .big{font-size:15px; text-align:center; margin:10px 0 4px; font-weight:600;}
+  .frac{display:inline-flex; flex-direction:column; vertical-align:middle; text-align:center; margin:0 3px;}
+  .frac .den{border-top:1.5px solid currentColor; padding-top:1px;}
+  .k{color:var(--blue); font-weight:700;}
+  .note{font-size:12.5px; color:var(--muted); margin-top:8px;}
+
+  .bars{display:flex; flex-direction:column; gap:6px; margin-top:8px;}
+  .bar-row{display:grid; grid-template-columns:74px 1fr 70px; align-items:center; gap:8px; font-size:12.5px;}
+  .bar-row .lbl{color:var(--muted); text-align:right;}
+  .bar{height:18px; border-radius:5px; background:var(--blue);}
+  .bar-row.win .bar{background:var(--ok);}
+  .bar-row .cnt{font-variant-numeric:tabular-nums;}
+  .trials-summary{font-size:14px; margin-top:10px;}
+  .kbd{font:12px ui-monospace,Menlo,monospace; background:#eef2f7; border:1px solid var(--line);
+       border-bottom-width:2px; border-radius:5px; padding:1px 6px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Karger's Contraction Algorithm — Global Minimum Cut</h1>
+    <p>Kleinberg &amp; Tardos §13.2 · a randomized algorithm: <em>example</em> + <em>analysis</em> in one interactive view</p>
+  </header>
+
+  <div class="layout">
+    <!-- LEFT: graph + controls -->
+    <div class="card">
+      <div class="controls">
+        <button id="btnStep" class="primary">Step ▸</button>
+        <button id="btnAuto" class="go">Auto-run</button>
+        <button id="btnReset">↺ New random run</button>
+        <button id="btnLucky" class="lucky">★ Find a lucky run</button>
+      </div>
+      <div class="status" id="status"></div>
+      <svg class="graph" id="svg" viewBox="0 0 820 560" role="img" aria-label="contraction graph"></svg>
+      <div class="narration" id="narration"></div>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--blue)"></i> only Left vertices {1,2,3,4}</span>
+        <span><i class="dot" style="background:var(--orange)"></i> only Right vertices {5,6,7,8}</span>
+        <span><i class="dot" style="background:var(--purple)"></i> mixed → a bridge edge was contracted ⇒ min cut lost</span>
+      </div>
+      <div class="note">Tip for presenting: <span class="kbd">Space</span> = Step, <span class="kbd">R</span> = reset.
+        Watch the colors — if a <b style="color:var(--purple)">purple</b> supernode ever appears, this run can no longer find the size‑2 cut.</div>
+    </div>
+
+    <!-- RIGHT: algorithm + analysis + monte carlo -->
+    <div class="card panel">
+      <h2>The algorithm</h2>
+      <p class="lead">Repeatedly merge a random edge until two “supernodes” remain.</p>
+      <pre class="algo"><b>Contract</b>(G):
+  <b>while</b> more than 2 supernodes:
+     pick a <b>uniformly random</b> edge (u,v)
+     merge u,v into one node
+        · keep parallel edges  (multigraph)
+        · delete self-loops
+  <b>return</b> edges between the final 2 supernodes  ← a cut</pre>
+
+      <h2 style="margin-top:16px">Why it works (analysis)</h2>
+      <div class="math" id="analysis"></div>
+      <div class="note" id="corollary"></div>
+
+      <h2 style="margin-top:16px">Empirical check — Monte Carlo</h2>
+      <p class="lead">A single run often fails — so you repeat it and keep the smallest cut found.</p>
+      <div class="controls">
+        <button id="btn100">Run 100 trials</button>
+        <button id="btn1000" class="primary">Run 1000 trials</button>
+      </div>
+      <div class="trials-summary" id="trialsSummary">No trials yet.</div>
+      <div class="bars" id="bars"></div>
+      <div class="note">The 1/C(n,2) bound is <b>worst-case</b> (tight for graphs like a cycle, which has many min cuts).
+        A graph with a single, well-separated min cut — like this one — succeeds far more often, so empirical &gt; the guarantee.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   GRAPH DEFINITION  (edit here to swap the example)
+   Two K4 clusters joined by a 2-edge bridge → unique min cut = 2.
+   ============================================================ */
+const NODES = {
+  // Left cluster {1,2,3,4}                 Right cluster {5,6,7,8}
+  2:{x:130,y:170}, 3:{x:130,y:390},        8:{x:480,y:170}, 5:{x:480,y:390},
+  1:{x:340,y:170}, 4:{x:340,y:390},        6:{x:690,y:170}, 7:{x:690,y:390},
+};
+const EDGES = [
+  // K4 on {1,2,3,4}
+  [1,2],[1,3],[1,4],[2,3],[2,4],[3,4],
+  // K4 on {5,6,7,8}
+  [5,6],[5,7],[5,8],[6,7],[6,8],[7,8],
+  // bridge (the min cut)
+  [1,8],[4,5],
+];
+const LEFT  = new Set([1,2,3,4]);
+const RIGHT = new Set([5,6,7,8]);
+
+const ALL_IDS = Object.keys(NODES).map(Number);
+const N = ALL_IDS.length;        // 8
+const M = EDGES.length;          // 14
+const SVGNS = "http://www.w3.org/2000/svg";
+
+/* ---------- exact min cut by brute force (robust if graph swapped) ---------- */
+function trueMinCut(){
+  const ids = ALL_IDS, n = ids.length; let best = Infinity;
+  for(let mask=0; mask < (1<<(n-1)); mask++){
+    const S = new Set([ids[0]]);
+    for(let i=0;i<n-1;i++) if(mask & (1<<i)) S.add(ids[i+1]);
+    if(S.size === n) continue;                 // complement must be non-empty
+    let cross = 0;
+    for(const [a,b] of EDGES) if(S.has(a) !== S.has(b)) cross++;
+    best = Math.min(best, cross);
+  }
+  return best;
+}
+const MIN = trueMinCut();        // 2
+
+/* ---------- seedable RNG (mulberry32) — lets us replay a chosen run ---------- */
+function mulberry32(a){
+  return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+/* ============================================================
+   STATE  (the live, animated multigraph)
+   ============================================================ */
+let state, rng, currentSeed, pickedEdgeId = null, busy = false, autoMode = false;
+
+function freshState(){
+  const supernodes = ALL_IDS.map(id => ({ id, members:[id], x:NODES[id].x, y:NODES[id].y }));
+  let eid = 0;
+  const edges = EDGES.map(([a,b]) => ({ id:eid++, a, b }));
+  return { supernodes, edges };
+}
+function byId(id){ return state.supernodes.find(n => n.id === id); }
+
+function resetTo(seed){
+  currentSeed = seed;
+  rng = mulberry32(seed);
+  state = freshState();
+  pickedEdgeId = null; busy = false; autoMode = false;
+  render({});
+  updateStatus();
+  updateNarration();
+  syncButtons();
+}
+function randomSeed(){ return (Math.random()*2147483647) | 0; }
+
+/* ---------- one contraction (mutates state) ---------- */
+function commitContract(aId, bId, mid){
+  const keep = Math.min(aId,bId), drop = Math.max(aId,bId);
+  const sk = byId(keep), sd = byId(drop);
+  sk.members = sk.members.concat(sd.members).sort((x,y)=>x-y);
+  sk.x = mid.x; sk.y = mid.y;
+  state.supernodes = state.supernodes.filter(n => n.id !== drop);
+  for(const e of state.edges){ if(e.a===drop) e.a=keep; if(e.b===drop) e.b=keep; }
+  state.edges = state.edges.filter(e => e.a !== e.b);   // drop self-loops
+}
+
+/* ---------- pure simulation (no DOM) for Monte Carlo + lucky search ---------- */
+function simulate(seed){
+  const r = mulberry32(seed);
+  let nodes = new Set(ALL_IDS);
+  let edges = EDGES.map(([a,b]) => [a,b]);
+  while(nodes.size > 2){
+    const e = edges[Math.floor(r()*edges.length)];
+    const keep = Math.min(e[0],e[1]), drop = Math.max(e[0],e[1]);
+    nodes.delete(drop);
+    for(const ed of edges){ if(ed[0]===drop) ed[0]=keep; if(ed[1]===drop) ed[1]=keep; }
+    edges = edges.filter(ed => ed[0] !== ed[1]);
+  }
+  return edges.length;   // size of the cut found
+}
+
+/* ============================================================
+   RENDERING
+   ============================================================ */
+const svg = document.getElementById('svg');
+
+function nodeColor(members){
+  const allLeft  = members.every(m => LEFT.has(m));
+  const allRight = members.every(m => RIGHT.has(m));
+  return allLeft ? 'var(--blue)' : allRight ? 'var(--orange)' : 'var(--purple)';
+}
+function nodeRadius(members){ return Math.min(40, 24 + 3*(members.length-1)); }
+function nodeLabel(members){
+  const s = members.join(',');
+  return s.length <= 11 ? s : members.length + ' verts';
+}
+function fontFor(label){
+  return label.length<=2?20 : label.length<=4?16 : label.length<=8?13 : 11;
+}
+
+function render(opts){
+  const overrides = opts.overrides || {};
+  const pos = id => overrides[id] || byId(id);
+  svg.innerHTML = '';
+
+  // group parallel edges by unordered pair for arc offsets
+  const groups = new Map();
+  state.edges.forEach(e => {
+    const key = Math.min(e.a,e.b)+'-'+Math.max(e.a,e.b);
+    if(!groups.has(key)) groups.set(key,[]);
+    groups.get(key).push(e);
+  });
+
+  // edges
+  groups.forEach(list => {
+    const c = list.length;
+    list.forEach((e,i) => {
+      const P = pos(e.a), Q = pos(e.b);
+      const off = (i - (c-1)/2) * 15;          // spread parallels
+      const path = document.createElementNS(SVGNS,'path');
+      let d;
+      if(Math.abs(off) < 0.5){
+        d = `M ${P.x} ${P.y} L ${Q.x} ${Q.y}`;
+      }else{
+        const mx=(P.x+Q.x)/2, my=(P.y+Q.y)/2;
+        let dx=Q.x-P.x, dy=Q.y-P.y; const len=Math.hypot(dx,dy)||1;
+        const px=-dy/len, py=dx/len;            // perpendicular
+        d = `M ${P.x} ${P.y} Q ${mx+px*off} ${my+py*off} ${Q.x} ${Q.y}`;
+      }
+      path.setAttribute('d', d);
+      path.setAttribute('class', 'edge' + (e.id===pickedEdgeId ? ' hot' : ''));
+      svg.appendChild(path);
+    });
+  });
+
+  // nodes
+  state.supernodes.forEach(nd => {
+    const P = pos(nd.id);
+    const g = document.createElementNS(SVGNS,'g'); g.setAttribute('class','node');
+    const r = nodeRadius(nd.members);
+    const c = document.createElementNS(SVGNS,'circle');
+    c.setAttribute('cx',P.x); c.setAttribute('cy',P.y); c.setAttribute('r',r);
+    c.setAttribute('fill', nodeColor(nd.members));
+    g.appendChild(c);
+    const t = document.createElementNS(SVGNS,'text');
+    const label = nodeLabel(nd.members);
+    t.setAttribute('x',P.x); t.setAttribute('y',P.y);
+    t.setAttribute('font-size', fontFor(label));
+    t.textContent = label;
+    g.appendChild(t);
+    svg.appendChild(g);
+  });
+}
+
+/* ============================================================
+   ANIMATED STEPPING
+   ============================================================ */
+function easeInOutCubic(u){ return u<.5 ? 4*u*u*u : 1-Math.pow(-2*u+2,3)/2; }
+
+function animateMerge(aId, bId, done){
+  const A = byId(aId), B = byId(bId);
+  const mid = { x:(A.x+B.x)/2, y:(A.y+B.y)/2 };
+  const A0 = {x:A.x,y:A.y}, B0 = {x:B.x,y:B.y};
+  const start = performance.now(), dur = 430;
+  function frame(now){
+    const u = Math.min(1,(now-start)/dur), e = easeInOutCubic(u);
+    const overrides = {};
+    overrides[aId] = { x:A0.x+(mid.x-A0.x)*e, y:A0.y+(mid.y-A0.y)*e };
+    overrides[bId] = { x:B0.x+(mid.x-B0.x)*e, y:B0.y+(mid.y-B0.y)*e };
+    render({ overrides });
+    if(u<1) requestAnimationFrame(frame); else done(mid);
+  }
+  requestAnimationFrame(frame);
+}
+
+function doStep(){
+  if(busy || state.supernodes.length <= 2) return;
+  busy = true; syncButtons();
+  const idx = Math.floor(rng()*state.edges.length);
+  const e = state.edges[idx];
+  pickedEdgeId = e.id;
+  render({});                 // flash the chosen edge red
+  updateStatus(`Chose a random edge → contracting nodes {${byId(e.a).members.join(',')}} and {${byId(e.b).members.join(',')}}…`);
+  setTimeout(() => {
+    animateMerge(e.a, e.b, (mid) => {
+      commitContract(e.a, e.b, mid);
+      pickedEdgeId = null;
+      render({});
+      busy = false;
+      updateStatus();
+      updateNarration();
+      syncButtons();
+      if(autoMode){
+        if(state.supernodes.length > 2) setTimeout(doStep, 480);
+        else autoMode = false;
+      }
+    });
+  }, 540);
+}
+
+function startReplay(seed){ resetTo(seed); autoMode = true; syncButtons(); doStep(); }
+
+function findLucky(){
+  for(let s=1; s<200000; s++){ if(simulate(s) === MIN){ startReplay(s); return; } }
+  updateStatus('No lucky seed found (unexpected).');
+}
+
+/* ============================================================
+   STATUS + BUTTONS
+   ============================================================ */
+function updateStatus(msg){
+  const el = document.getElementById('status');
+  const k = state.supernodes.length;
+  if(msg){ el.innerHTML = `<span class="progress">${k} supernodes</span> — ${msg}`; return; }
+  if(k > 2){
+    el.innerHTML = `<span class="progress">${k} supernodes remaining</span> — press <b>Step</b> to contract a random edge.`;
+  }else{
+    const cut = state.edges.length;
+    const ok = cut === MIN;
+    el.innerHTML =
+      `<span class="progress">2 supernodes left.</span> Cut found = <b>${cut} edge${cut===1?'':'s'}</b> ` +
+      (ok ? `<span class="pill ok">✓ this IS a minimum cut (min = ${MIN})</span>`
+          : `<span class="pill bad">✗ missed it (min = ${MIN})</span>`);
+  }
+}
+function syncButtons(){
+  const done = state.supernodes.length <= 2;
+  document.getElementById('btnStep').disabled = busy || done;
+  document.getElementById('btnAuto').disabled = busy || done;
+  document.getElementById('btnAuto').textContent = autoMode ? '⏸ Stop' : 'Auto-run';
+}
+
+/* narration captions — walk through the proof alongside the contractions */
+function updateNarration(){
+  const el = document.getElementById('narration');
+  const k = state.supernodes.length;
+  const mixed = state.supernodes.some(n =>
+    !n.members.every(m => LEFT.has(m)) && !n.members.every(m => RIGHT.has(m)));
+  el.className = 'narration';
+
+  if(k <= 2){                                   // run finished
+    const cut = state.edges.length, ok = cut === MIN;
+    if(ok){
+      el.classList.add('win');
+      el.innerHTML = `<b>✓ The min cut survived all ${N-2} contractions.</b> We never contracted a
+        crossing edge, so the two blobs are exactly {1,2,3,4} and {5,6,7,8} with the <b>${MIN}</b>
+        bridge edges between them. A single run reaches a given min cut with probability
+        ≥ 1/C(${N},2) ≈ ${(1/comb2(N)*100).toFixed(1)}%.`;
+    }else{
+      el.classList.add('lose');
+      el.innerHTML = `<b>✗ Missed it — found a cut of ${cut} edges (min = ${MIN}).</b> Along the way a
+        bridge edge got contracted (a purple blob appeared), merging the two sides. One run is
+        unreliable — that's why we repeat ≈ C(n,2)·ln n = O(n² log n) times and keep the smallest cut.`;
+    }
+    return;
+  }
+  if(k === N){                                  // fresh graph
+    el.innerHTML = `<b>Goal: the global minimum cut</b> — here size <b>k = ${MIN}</b> (the two horizontal
+      bridges). Key fact: every vertex has degree ≥ k, so m ≥ k·n/2 edges. The graph is edge-rich, so a
+      uniformly random edge usually <em>misses</em> the cut. Press <b>Step</b> to contract one.`;
+    return;
+  }
+  if(mixed){                                    // min cut already destroyed
+    el.classList.add('warn');
+    el.innerHTML = `<b>${k} supernodes left — a purple (mixed) blob has appeared.</b> A bridge edge was
+      contracted, merging a Left and a Right vertex, so this run can no longer produce the size-${MIN}
+      cut; it will end larger. Reset and try again — that's the randomness.`;
+    return;
+  }
+  el.innerHTML = `<b>${k} supernodes left.</b> The target cut is still a minimum cut of this smaller
+    multigraph (still ≥ k·j/2 edges), so the next random edge hits it with probability ≤ 2/j = 2/${k}
+    ≈ ${(2/k*100).toFixed(0)}% — it probably survives this step too.`;
+}
+
+/* ============================================================
+   ANALYSIS PANEL (wired to live n, m, k)
+   ============================================================ */
+function comb2(n){ return n*(n-1)/2; }
+function renderAnalysis(){
+  const k = MIN, n = N, m = M, Cn2 = comb2(n);
+  const p = (1/Cn2*100);
+  const reps = Math.ceil(Cn2*Math.log(n));
+  document.getElementById('analysis').innerHTML = `
+    <div class="step">① Min cut has <span class="k">k = ${k}</span> edges ⇒ every vertex has degree ≥ k
+        ⇒ &nbsp; 2m = Σ deg(v) ≥ k·n &nbsp; ⇒ &nbsp; <b>m ≥ k·n/2</b>.</div>
+    <div class="step">② With <b>j</b> supernodes left, the graph still has ≥ k·j/2 edges, so a random edge
+        hits the min cut with prob ≤
+        <span class="frac"><span>k</span><span class="den">k·j/2</span></span> =
+        <span class="frac"><span>2</span><span class="den">j</span></span>.</div>
+    <div class="step">③ P(min cut survives all contractions) ≥
+        ∏<sub>j=3</sub><sup>n</sup>(1 − 2/j) =
+        <span class="frac"><span>2</span><span class="den">n(n−1)</span></span> =
+        <span class="frac"><span>1</span><span class="den">C(n,2)</span></span>&nbsp;&nbsp;(telescopes).</div>
+    <div class="big">For this graph: n = ${n}, m = ${m}, k = ${k} ⇒
+        P(success) ≥ 1/C(${n},2) = 1/${Cn2} ≈ ${p.toFixed(1)}%</div>
+    <div class="step">④ Repeat ≈ C(n,2)·ln n ≈ <b>${reps} runs</b> and keep the smallest ⇒ failure ≤ 1/n.
+        Total work is polynomial: <b>O(n² log n)</b> runs.</div>`;
+  document.getElementById('corollary').innerHTML =
+    `<b>Corollary.</b> Each min cut is output with prob ≥ 1/C(n,2), and the outputs are disjoint events,
+     so a graph has at most <b>C(n,2) = ${Cn2}</b> distinct global minimum cuts.`;
+}
+
+/* ============================================================
+   MONTE CARLO
+   ============================================================ */
+function runTrials(T){
+  const counts = {}; let success = 0;
+  for(let i=0;i<T;i++){
+    const c = simulate(randomSeed());
+    counts[c] = (counts[c]||0) + 1;
+    if(c === MIN) success++;
+  }
+  const sizes = Object.keys(counts).map(Number).sort((a,b)=>a-b);
+  const maxCnt = Math.max(...sizes.map(s=>counts[s]));
+  const rate = (success/T*100);
+  document.getElementById('trialsSummary').innerHTML =
+    `Found the min cut in <b>${success} / ${T}</b> runs = <b>${rate.toFixed(1)}%</b>
+     &nbsp;<span class="progress">(theory guarantees ≥ ${(1/comb2(N)*100).toFixed(1)}%)</span>`;
+  const bars = document.getElementById('bars');
+  bars.innerHTML = '';
+  sizes.forEach(s => {
+    const row = document.createElement('div');
+    row.className = 'bar-row' + (s===MIN ? ' win' : '');
+    const w = Math.max(2, counts[s]/maxCnt*100);
+    row.innerHTML =
+      `<span class="lbl">cut = ${s}${s===MIN?' ★':''}</span>
+       <span class="bar" style="width:${w}%"></span>
+       <span class="cnt">${counts[s]}</span>`;
+    bars.appendChild(row);
+  });
+}
+
+/* ============================================================
+   WIRE UP
+   ============================================================ */
+document.getElementById('btnStep').onclick  = () => doStep();
+document.getElementById('btnAuto').onclick   = () => {
+  if(autoMode){ autoMode = false; syncButtons(); }
+  else { autoMode = true; syncButtons(); doStep(); }
+};
+document.getElementById('btnReset').onclick  = () => resetTo(randomSeed());
+document.getElementById('btnLucky').onclick  = () => findLucky();
+document.getElementById('btn100').onclick    = () => runTrials(100);
+document.getElementById('btn1000').onclick   = () => runTrials(1000);
+window.addEventListener('keydown', (ev) => {
+  if(ev.code === 'Space'){ ev.preventDefault(); if(!busy) doStep(); }
+  else if(ev.key === 'r' || ev.key === 'R'){ resetTo(randomSeed()); }
+});
+
+renderAnalysis();
+resetTo(randomSeed());
+</script>
+</body>
+</html>

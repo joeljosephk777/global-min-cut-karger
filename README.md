@@ -2,6 +2,8 @@
 
 Interactive browser visualization and probability analysis of Karger's randomized contraction algorithm for the global minimum cut (Kleinberg–Tardos §13.2).
 
+**▶ Live demo:** https://globalmincut.netlify.app/karger.html
+
 ## Contents
 
 - **`karger.html`** — a self-contained, dependency-free interactive visualization. Open it in any browser to step through edge contractions on an example graph, watch the success-probability analysis update alongside the animation, and run the algorithm many times to compare the empirical success rate against the theoretical bound.
@@ -9,7 +11,7 @@ Interactive browser visualization and probability analysis of Karger's randomize
 
 ## Usage
 
-Open `karger.html` in any modern web browser — no installation, build step, or internet connection required.
+Try it online at the [live demo](https://globalmincut.netlify.app/karger.html), or open `karger.html` in any modern web browser — no installation, build step, or internet connection required.
 
 - **Step** — contract one uniformly random edge.
 - **Auto-run** — contract automatically until two supernodes remain.

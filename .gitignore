@@ -15,3 +15,8 @@
 
 # Personal (not part of the project)
 Github_Rules.txt
+13RandomizedAlgorithms.pdf
+
+# Slide generator script + temp lock files
+make_slides.py
+~$*
